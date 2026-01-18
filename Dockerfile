@@ -11,6 +11,10 @@ RUN if [ -f /app/requirements.txt ]; then pip install --no-cache-dir -r /app/req
 
 # Create a non-root user for safety
 RUN addgroup --system app && adduser --system --ingroup app app || true
+
+# Grant permissions to the app user
+RUN chown -R app:app /app
+
 USER app
 
 CMD ["python", "main.py"]
