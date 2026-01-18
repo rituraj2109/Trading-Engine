@@ -194,6 +194,10 @@ def interactive_mode():
         except KeyboardInterrupt:
             print("\nExiting...")
             sys.exit(0)
+        except EOFError:
+            print(f"{Fore.YELLOW}\nNon-interactive mode detected (EOF). Switching to background-only mode.{Style.RESET_ALL}")
+            while True:
+                time.sleep(60)
         except Exception as e:
             print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
 
@@ -208,8 +212,14 @@ def main():
     t = threading.Thread(target=background_job, daemon=True)
     t.start()
     
-    # 3. Enter Interactive Mode
-    interactive_mode()
+    # 3. Enter Interactive Mode if TTY is present
+    if sys.stdin.isatty():
+        interactive_mode()
+    else:
+        print("Running in headless mode. Background job is active.")
+        # Keep main thread alive
+        while True:
+            time.sleep(60)
 
 if __name__ == "__main__":
     main()
