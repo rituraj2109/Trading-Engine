@@ -18,14 +18,33 @@ class DecisionEngine:
         """
         from datetime import datetime, timedelta
         
-        # Helper to get current IST time string
-        def get_current_ist():
-            return (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime('%Y-%m-%d %H:%M:%S (IST)')
+        # Validate symbol first
+        if pair.upper() not in Config.VALID_SYMBOLS:
+            dt_utc = datetime.utcnow()
+            dt_ist = dt_utc + timedelta(hours=5, minutes=30)
+            return {
+                "time": dt_utc.isoformat(),
+                "time_ist": dt_ist.strftime('%Y-%m-%d %H:%M:%S (IST)'),
+                "pair": pair,
+                "signal": "WAIT",
+                "confidence": 0.0,
+                "price": 0.0,
+                "stop_loss": 0.0,
+                "take_profit": 0.0,
+                "reason": f"Invalid Symbol: '{pair}' not recognized",
+                "scores": (0, 0)
+            }
+        
+        # Helper to get current UTC ISO time
+        def get_current_utc():
+            return datetime.utcnow().isoformat()
 
         # Helper for empty return (Data Fetch Failed)
         def return_empty(reason):
+             dt_utc = datetime.utcnow()
+             dt_ist = dt_utc + timedelta(hours=5, minutes=30)
              return {
-                "time": get_current_ist(),
+                "time": dt_utc.isoformat(),
                 "pair": pair,
                 "signal": "WAIT",
                 "confidence": 0.0,
@@ -104,7 +123,8 @@ class DecisionEngine:
                 final_reason += f" | Patterns: {', '.join(patterns)}"
             
         return {
-            "time": dt_ist.strftime('%Y-%m-%d %H:%M:%S (IST)'),
+            "time": dt_utc.isoformat(),  # Store UTC ISO-8601
+            "time_ist": dt_ist.strftime('%Y-%m-%d %H:%M:%S (IST)'),  # Display IST
             "pair": pair,
             "signal": signal,
             "confidence": round(abs(total_score)/5.0 * 100, 2), 
@@ -115,7 +135,7 @@ class DecisionEngine:
             "scores": (tech_score, sent_score),
             "session_info": session_info,
             "raw_data": {
-                "time": latest_candle['datetime'], # UTC
+                "time": dt_utc.isoformat(), # Store as UTC ISO string
                 "open": latest_candle['open'],
                 "high": latest_candle['high'],
                 "low": latest_candle['low'],

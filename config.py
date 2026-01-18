@@ -19,6 +19,19 @@ class Config:
     PAIRS = ["EURUSD", "USDJPY", "GBPUSD", "USDCAD", "GBPJPY", "XAUUSD", "XAGUSD"]
     TIMEFRAME = "15min"  # 15 minutes
     
+    # Valid symbols for trading (extend as needed)
+    VALID_SYMBOLS = [
+        # Forex majors
+        "EURUSD", "USDJPY", "GBPUSD", "USDCAD", "AUDUSD", "NZDUSD",
+        "GBPJPY", "EURJPY", "EURGBP", "USDCHF",
+        # Commodities
+        "XAUUSD", "XAGUSD",
+        # Crypto
+        "BTCUSD", "ETHUSD",
+        # Stocks (examples)
+        "AAPL", "GOOGL", "MSFT", "TSLA", "AMZN"
+    ]
+    
     # Risk Management
     RISK_PERCENT = 0.01  # 1% Account Risk
     MIN_RISK_REWARD = 2.0

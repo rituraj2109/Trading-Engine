@@ -56,10 +56,12 @@ def run_analysis_cycle(mode="background"):
             if 'raw_data' in result:
                 rd = result['raw_data']
                 try:
+                    # Convert timestamp to ISO string if needed
+                    time_str = rd['time'].isoformat() if hasattr(rd['time'], 'isoformat') else str(rd['time'])
                     cursor.execute('''
                         INSERT OR REPLACE INTO market_data (time, pair, open, high, low, close, rsi, macd, atr, ema_20, ema_50)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (str(rd['time']), pair, rd['open'], rd['high'], rd['low'], rd['close'], 
+                    ''', (time_str, pair, rd['open'], rd['high'], rd['low'], rd['close'], 
                           rd['rsi'], rd['macd'], rd['atr'], rd['ema_20'], rd['ema_50']))
                     conn.commit()
                     data_saved_count += 1
@@ -73,10 +75,12 @@ def run_analysis_cycle(mode="background"):
             cursor.execute('''
                 INSERT INTO signals (time, pair, signal, confidence, entry_price, stop_loss, take_profit, reason)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (str(result['time']), pair, result['signal'], result['confidence'], 
+            ''', (result['time'], pair, result['signal'], result['confidence'], 
                   result['price'], result['stop_loss'], result['take_profit'], result['reason']))
             conn.commit()
             signals_saved_count += 1
+            if mode == "background":
+                logger.info(f"[SIGNAL] Saved signal for {pair}: {result['signal']} at {result['time']}")
             
             # Save Chart Patterns to History
             if 'pattern_details' in result and result['pattern_details']:
@@ -84,7 +88,7 @@ def run_analysis_cycle(mode="background"):
                     cursor.execute('''
                         INSERT INTO pattern_history (time, pair, pattern_name, bias, score, confidence)
                         VALUES (?, ?, ?, ?, ?, ?)
-                    ''', (str(result['time']), pair, pattern_name, details['bias'], 
+                    ''', (result['time'], pair, pattern_name, details['bias'], 
                           details['score'], details['confidence']))
                 conn.commit()
             
@@ -116,7 +120,7 @@ def print_report(result):
     
     print(f"\n{Style.BRIGHT}----------------------------------------")
     print(f"{Style.BRIGHT}SYMBOL: {result['pair']} | SIGNAL: {color}{result['signal']}{Style.RESET_ALL}{Style.BRIGHT}")
-    print(f"TIME (IST): {result['time']}")
+    print(f"TIME (IST): {result.get('time_ist', result['time'])}")
     
     # Show session info
     if 'session_info' in result:
@@ -171,6 +175,12 @@ def interactive_mode():
             if user_input == "EXIT":
                 print("Shutting down...")
                 sys.exit(0)
+            
+            # Check if valid symbol
+            if user_input not in Config.PAIRS + Config.VALID_SYMBOLS:
+                print(f"{Fore.RED}✗ Invalid Symbol: '{user_input}' not recognized{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}Valid symbols: {', '.join(Config.VALID_SYMBOLS[:15])}...{Style.RESET_ALL}")
+                continue
             
             print(f"Fetching data for {user_input}...")
             result = engine.analyze_pair(user_input)
