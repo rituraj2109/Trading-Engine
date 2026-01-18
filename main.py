@@ -202,6 +202,8 @@ def interactive_mode():
             print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
 
 def main():
+    print("Starting Core Engine v1.2 (Interactive/Headless Fix)...")
+    sys.stdout.flush()
     init_db()
     
     # 1. Run initial data fetch
