@@ -298,6 +298,7 @@ class DataLoader:
     def fetch_indicator_taapi(self, symbol, indicator="rsi", interval="15m"):
         """Fetch specific indicator from Taapi.io"""
         if Config.API_KEY_TAAPI == "DEMO_KEY":
+            logger.warning(f"Taapi API Key is missing (using DEMO_KEY). Skipping {symbol}.")
             return None
         
         # Taapi requires specific symbol formats, often exchange specific.
