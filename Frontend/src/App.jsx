@@ -47,9 +47,17 @@ function App() {
                     <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">
                         Forex Engine Dashboard
                     </h1>
-                    <p className="text-slate-400 mt-1 flex items-center gap-2">
-                        Status: <span className={`w-2 h-2 rounded-full ${status.status === 'running' ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                        {status.status}
+                    <p className="text-slate-400 mt-1 flex items-center gap-4">
+                        <span className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${status.status === 'running' ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                            Engine
+                        </span>
+                        {status.mongodb && (
+                            <span className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${status.mongodb === 'connected' ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                                MongoDB: {status.mongodb}
+                            </span>
+                        )}
                     </p>
                 </div>
                 <button

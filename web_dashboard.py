@@ -26,7 +26,23 @@ def serve(path):
 
 @app.route('/api/status', methods=['GET'])
 def status():
-    return jsonify({"status": "running", "version": "1.2"})
+    # Check Mongo Status
+    mongo_status = "disabled"
+    if Config.MONGO_URI:
+        try:
+            from utils import get_mongo_db
+            db = get_mongo_db()
+            db.command('ping')
+            mongo_status = "connected"
+        except Exception as e:
+            mongo_status = f"error: {str(e)}"
+            
+    return jsonify({
+        "status": "running", 
+        "version": "1.2",
+        "database": "sqlite",
+        "mongodb": mongo_status
+    })
 
 @app.route('/api/signals', methods=['GET'])
 def get_signals():
