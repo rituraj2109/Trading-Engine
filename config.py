@@ -48,7 +48,7 @@ class Config:
     TRADING_START_HOUR_UTC = 8 
     TRADING_END_HOUR_UTC = 22
 
-    # Database
+    # Database: allow override via DB_FILE env var, otherwise use local sqlite file
     DB_FILE = os.getenv("DB_FILE", "forex_engine.db")
     
     # Files
