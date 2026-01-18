@@ -32,6 +32,13 @@ class DataLoader:
         """
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Mongo Connection
+        db_mongo = None
+        if Config.MONGO_URI:
+            from utils import get_mongo_db
+            db_mongo = get_mongo_db()
+
         count = 0
         for item in news_items:
             # Simple keyword matching for currency if not provided
@@ -40,10 +47,28 @@ class DataLoader:
             news_id = self._generate_news_id(item['title'], item['date'])
             
             try:
+                # SQL Save
                 cursor.execute('''
                     INSERT INTO news (id, date, title, source, sentiment_score, currency)
                     VALUES (?, ?, ?, ?, ?, ?)
                 ''', (news_id, item['date'], item['title'], item['source'], 0.0, currency))
+                
+                # Mongo Save (Upsert)
+                if db_mongo is not None:
+                     db_mongo.news.update_one(
+                        {"id": news_id},
+                        {"$set": {
+                            "id": news_id,
+                            "date": item['date'],
+                            "title": item['title'],
+                            "source": item['source'],
+                            "text": item['text'],
+                            "sentiment_score": 0.0,
+                            "currency": currency
+                        }},
+                        upsert=True
+                     )
+
                 count += 1
             except sqlite3.IntegrityError:
                 continue # Duplicate

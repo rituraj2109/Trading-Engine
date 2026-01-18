@@ -6,3 +6,7 @@ schedule
 ta
 colorama
 vaderSentiment
+flask
+flask-cors
+pymongo
+dnspython

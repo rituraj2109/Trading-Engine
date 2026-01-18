@@ -51,6 +51,9 @@ class Config:
     # Database: allow override via DB_FILE env var, otherwise use local sqlite file
     DB_FILE = os.getenv("DB_FILE", "forex_engine.db")
     
+    # MongoDB Configuration
+    MONGO_URI = os.getenv("MONGO_URI")
+    
     # Files
     LOG_FILE = "trading_engine.log"
 

@@ -34,8 +34,11 @@ def check_api_keys():
     else:
         logger.info("✅ All API keys appear to be configured.")
 
+from pymongo import MongoClient
+
 # Database Setup
 def init_db():
+    # SQLite Init (Legacy/Local)
     conn = sqlite3.connect(Config.DB_FILE)
     cursor = conn.cursor()
     
@@ -98,10 +101,25 @@ def init_db():
     
     conn.commit()
     conn.close()
-    logger.info("Database initialized.")
+    logger.info("Sqlite Database initialized.")
+
+    # MongoDB Init Check
+    if Config.MONGO_URI:
+        try:
+            client = MongoClient(Config.MONGO_URI, serverSelectionTimeoutMS=5000)
+            client.server_info() # Trigger connection check
+            logger.info("✅ MongoDB Connection Successful.")
+        except Exception as e:
+            logger.error(f"❌ MongoDB Connection Failed: {e}")
 
 def get_db_connection():
     return sqlite3.connect(Config.DB_FILE)
+
+def get_mongo_db():
+    if not Config.MONGO_URI:
+        return None
+    client = MongoClient(Config.MONGO_URI)
+    return client.get_database("forex_engine")
 
 def is_trading_hours():
     """Check if current time is within London/NY sessions (UTC)"""

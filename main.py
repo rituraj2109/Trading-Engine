@@ -37,6 +37,12 @@ def run_analysis_cycle(mode="background"):
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # Mongo Connection
+    db_mongo = None
+    if Config.MONGO_URI:
+        from utils import get_mongo_db
+        db_mongo = get_mongo_db()
+
     if mode == "background":
         logger.info(f"Processing {len(Config.PAIRS)} symbols: {', '.join(Config.PAIRS)}")
     
@@ -58,11 +64,31 @@ def run_analysis_cycle(mode="background"):
                 try:
                     # Convert timestamp to ISO string if needed
                     time_str = rd['time'].isoformat() if hasattr(rd['time'], 'isoformat') else str(rd['time'])
+                    
+                    # 1. SQL Save
                     cursor.execute('''
                         INSERT OR REPLACE INTO market_data (time, pair, open, high, low, close, rsi, macd, atr, ema_20, ema_50)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (time_str, pair, rd['open'], rd['high'], rd['low'], rd['close'], 
                           rd['rsi'], rd['macd'], rd['atr'], rd['ema_20'], rd['ema_50']))
+                    
+                    # 2. Mongo Save
+                    if db_mongo is not None:
+                        mongo_data = {
+                            "time": time_str,
+                            "pair": pair,
+                            "open": rd['open'], "high": rd['high'], "low": rd['low'], "close": rd['close'],
+                            "rsi": rd['rsi'], "macd": rd['macd'], "atr": rd['atr'],
+                            "pos_atr": rd.get('pos_atr'), # Bollinger/Keltner helpers if exist
+                            "ema_20": rd['ema_20'], "ema_50": rd['ema_50']
+                        }
+                        # Upsert based on time+pair
+                        db_mongo.market_data.update_one(
+                            {"pair": pair, "time": time_str},
+                            {"$set": mongo_data},
+                            upsert=True
+                        )
+
                     conn.commit()
                     data_saved_count += 1
                     if mode == "background":
@@ -77,6 +103,22 @@ def run_analysis_cycle(mode="background"):
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (result['time'], pair, result['signal'], result['confidence'], 
                   result['price'], result['stop_loss'], result['take_profit'], result['reason']))
+            
+            # Mongo Save Signal
+            if db_mongo is not None:
+                signal_doc = {
+                    "time": result['time'],
+                    "pair": pair,
+                    "signal": result['signal'],
+                    "confidence": result['confidence'],
+                    "entry_price": result['price'],
+                    "stop_loss": result['stop_loss'],
+                    "take_profit": result['take_profit'],
+                    "reason": result['reason'],
+                    "created_at": datetime.utcnow()
+                }
+                db_mongo.signals.insert_one(signal_doc)
+
             conn.commit()
             signals_saved_count += 1
             if mode == "background":
@@ -90,6 +132,17 @@ def run_analysis_cycle(mode="background"):
                         VALUES (?, ?, ?, ?, ?, ?)
                     ''', (result['time'], pair, pattern_name, details['bias'], 
                           details['score'], details['confidence']))
+                    
+                    if db_mongo is not None:
+                        db_mongo.pattern_history.insert_one({
+                            "time": result['time'],
+                            "pair": pair,
+                            "pattern_name": pattern_name,
+                            "bias": details['bias'],
+                            "score": details['score'],
+                            "confidence": details['confidence']
+                        })
+
                 conn.commit()
             
             # Only log BUY/SELL signals to console in background mode
