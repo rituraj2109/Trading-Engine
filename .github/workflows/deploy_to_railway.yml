@@ -1,0 +1,43 @@
+name: Deploy to Railway (optional)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT: ${{ secrets.RAILWAY_PROJECT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Verify Railway token
+        run: |
+          if [ -z "${RAILWAY_TOKEN}" ]; then echo "RAILWAY_TOKEN not set" && exit 1; fi
+
+      - name: Link project
+        run: |
+          # Link to the given project id (non-interactive)
+          railway link --id ${RAILWAY_PROJECT}
+
+      - name: Deploy
+        run: |
+          # Deploy the project (uses Dockerfile / Procfile)
+          railway up --detach
+
+      - name: Show services
+        run: railway status || true
+
+    # Note: This job requires two repository secrets to be set:
+    # - RAILWAY_TOKEN : your Railway API token
+    # - RAILWAY_PROJECT: the Railway project id to link to
