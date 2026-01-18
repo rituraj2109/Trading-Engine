@@ -19,6 +19,21 @@ def setup_logging():
 
 logger = setup_logging()
 
+def check_api_keys():
+    """Validates that API keys are set in the environment"""
+    missing_keys = []
+    if Config.API_KEY_TWELVEDATA == "DEMO_KEY": missing_keys.append("TwelveData")
+    if Config.API_KEY_POLYGON == "DEMO_KEY": missing_keys.append("Polygon")
+    if Config.API_KEY_ALPHAVANTAGE == "DEMO_KEY": missing_keys.append("AlphaVantage")
+    if Config.API_KEY_FMP == "DEMO_KEY": missing_keys.append("FMP")
+    
+    if missing_keys:
+        logger.warning("⚠️  MISSING API KEYS DETECTED!")
+        logger.warning(f"The following services are using 'DEMO_KEY' and will be skipped: {', '.join(missing_keys)}")
+        logger.warning("Ensure you have added your API keys to the Environment Variables (or .env file locally).")
+    else:
+        logger.info("✅ All API keys appear to be configured.")
+
 # Database Setup
 def init_db():
     conn = sqlite3.connect(Config.DB_FILE)

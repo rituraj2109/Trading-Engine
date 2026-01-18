@@ -3,7 +3,7 @@ import time
 import sys
 import threading
 from config import Config
-from utils import init_db, logger, get_db_connection
+from utils import init_db, logger, get_db_connection, check_api_keys
 from data_loader import DataLoader
 from sentiment import SentimentEngine
 from strategy import DecisionEngine
@@ -204,6 +204,9 @@ def interactive_mode():
 def main():
     print("Starting Core Engine v1.2 (Interactive/Headless Fix)...")
     sys.stdout.flush()
+    # Check for valid API keys
+    check_api_keys()
+    
     init_db()
     
     # 1. Run initial data fetch
