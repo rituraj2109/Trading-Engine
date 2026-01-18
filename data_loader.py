@@ -11,6 +11,8 @@ class DataLoader:
     def __init__(self):
         self.session = requests.Session()
         self.last_api_call = {}  # Track last API call time for rate limiting
+        # Cache symbols that TwelveData reports as unavailable on current plan
+        self.td_unavailable = set()
 
     def _rate_limit(self, api_name, min_delay=1.0):
         """Enforce minimum delay between API calls"""
@@ -216,6 +218,11 @@ class DataLoader:
         if Config.API_KEY_TWELVEDATA == "DEMO_KEY":
             return None
 
+        # If we've previously seen this symbol flagged as unavailable on TwelveData plan, skip immediately
+        if symbol.upper() in self.td_unavailable:
+            logger.info(f"Skipping TwelveData for {symbol} — previously marked unavailable on current plan.")
+            return None
+
         # Rate limiting: Wait at least 1 second between calls (free tier: 8 calls/min)
         self._rate_limit('twelvedata', min_delay=1.0)
 
@@ -249,7 +256,16 @@ class DataLoader:
                 df = df.sort_values('datetime')
                 return df
             else:
-                logger.error(f"TwelveData error for {symbol} ({td_symbol}): {data.get('message')}")
+                msg = data.get('message') or str(data)
+                logger.error(f"TwelveData error for {symbol} ({td_symbol}): {msg}")
+                # Detect plan/availability related messages and cache the symbol to avoid repeated failing calls
+                lowered = (msg or "").lower()
+                if 'grow' in lowered or 'available starting' in lowered or 'plan' in lowered or 'not available' in lowered:
+                    try:
+                        self.td_unavailable.add(symbol.upper())
+                        logger.info(f"Marked {symbol} as unavailable on TwelveData for this plan — will skip next time.")
+                    except Exception:
+                        pass
         except Exception as e:
             logger.error(f"TwelveData Exception: {e}")
         return None
