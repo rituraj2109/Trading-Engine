@@ -5,7 +5,8 @@ import sqlite3
 import pandas as pd
 from datetime import datetime, timezone, timedelta
 
-DB = 'forex_engine.db'
+from config import Config
+DB = Config.DB_FILE
 
 print("\n" + "="*70)
 print("15-MINUTE CYCLE STATUS CHECK")

@@ -49,7 +49,7 @@ class Config:
     TRADING_END_HOUR_UTC = 22
 
     # Database
-    DB_FILE = "forex_engine.db"
+    DB_FILE = os.getenv("DB_FILE", "forex_engine.db")
     
     # Files
     LOG_FILE = "trading_engine.log"

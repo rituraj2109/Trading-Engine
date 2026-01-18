@@ -5,7 +5,8 @@ import sqlite3
 from datetime import datetime, timezone
 import pandas as pd
 
-DB = 'forex_engine.db'
+from config import Config
+DB = Config.DB_FILE
 
 def q(sql, params=()):
     conn = sqlite3.connect(DB)

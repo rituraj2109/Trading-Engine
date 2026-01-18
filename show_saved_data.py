@@ -4,6 +4,7 @@ Display all saved data from the forex_engine database
 """
 
 import sqlite3
+from config import Config
 from datetime import datetime
 from colorama import Fore, Style, init
 
@@ -12,7 +13,7 @@ init(autoreset=True)
 def show_database_contents():
     """Display all tables and their recent data"""
     
-    conn = sqlite3.connect('forex_engine.db')
+    conn = sqlite3.connect(Config.DB_FILE)
     cursor = conn.cursor()
     
     print(f"\n{Fore.CYAN}{'='*80}")

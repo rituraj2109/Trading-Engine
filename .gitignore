@@ -10,3 +10,4 @@ trading_engine.log
 .vscode/
 .DS_Store
 .ipynb_checkpoints/
+test_*.py

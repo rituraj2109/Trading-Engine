@@ -1,6 +1,7 @@
 import sqlite3
+from config import Config
 
-conn = sqlite3.connect('forex_engine.db')
+conn = sqlite3.connect(Config.DB_FILE)
 c = conn.cursor()
 
 print("\n" + "="*60)

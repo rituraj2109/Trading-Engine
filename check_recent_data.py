@@ -1,8 +1,9 @@
 import sqlite3
+from config import Config
 from datetime import datetime, timedelta
 
 def check_recent_data():
-    conn = sqlite3.connect('forex_engine.db')
+    conn = sqlite3.connect(Config.DB_FILE)
     c = conn.cursor()
     
     print("="*80)

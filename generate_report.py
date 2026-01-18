@@ -1,8 +1,9 @@
 import sqlite3
+from config import Config
 import json
 from datetime import datetime
 
-conn = sqlite3.connect('forex_engine.db')
+conn = sqlite3.connect(Config.DB_FILE)
 c = conn.cursor()
 
 # Create detailed report
