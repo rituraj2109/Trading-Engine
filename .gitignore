@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+forex_engine.db
+trading_engine.log
+*.log
+.vscode/
+.DS_Store
+.ipynb_checkpoints/
