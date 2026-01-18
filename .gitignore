@@ -11,3 +11,9 @@ trading_engine.log
 .DS_Store
 .ipynb_checkpoints/
 test_*.py
+check_*.py
+verify_*.py
+exports/
+*.txt
+!requirements.txt
+!runtime.txt

@@ -7,6 +7,10 @@ forex_engine.db
 *.db
 exports/
 logs/
+*.log
+test_*.py
+check_*.py
+verify_*.py
 .git/
 node_modules/
 dist/
