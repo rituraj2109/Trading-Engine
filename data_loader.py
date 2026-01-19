@@ -30,14 +30,9 @@ class DataLoader:
         """
         news_items: List of dicts {date, title, source, text, currency}
         """
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
         # Mongo Connection
-        db_mongo = None
-        if Config.MONGO_URI:
-            from utils import get_mongo_db
-            db_mongo = get_mongo_db()
+        from utils import get_mongo_db
+        db_mongo = get_mongo_db()
 
         count = 0
         for item in news_items:
@@ -47,12 +42,6 @@ class DataLoader:
             news_id = self._generate_news_id(item['title'], item['date'])
             
             try:
-                # SQL Save
-                cursor.execute('''
-                    INSERT INTO news (id, date, title, source, sentiment_score, currency)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (news_id, item['date'], item['title'], item['source'], 0.0, currency))
-                
                 # Mongo Save (Upsert)
                 if db_mongo is not None:
                      db_mongo.news.update_one(
@@ -68,15 +57,13 @@ class DataLoader:
                         }},
                         upsert=True
                      )
-
-                count += 1
-            except sqlite3.IntegrityError:
-                continue # Duplicate
+                     count += 1
+            except Exception as e:
+                logger.error(f"Error saving news to Mongo: {e}")
+                continue
         
-        conn.commit()
-        conn.close()
         if count > 0:
-            logger.info(f"Saved {count} new news items.")
+            logger.info(f"Saved {count} new news items to MongoDB.")
 
     def fetch_news_fmp(self):
         """Fetch news from Financial Modeling Prep"""

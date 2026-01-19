@@ -5,7 +5,7 @@ import pandas as pd
 import threading
 import os
 from config import Config
-from main import background_job
+from main import background_job, run_analysis_cycle
 from utils import init_db
 
 app = Flask(__name__, static_folder='frontend/dist')
@@ -46,58 +46,83 @@ def status():
 
 @app.route('/api/signals', methods=['GET'])
 def get_signals():
-    conn = get_db_connection()
-    # Get latest signal for each pair
-    query = '''
-        SELECT s.* 
-        FROM signals s
-        INNER JOIN (
-            SELECT pair, MAX(time) as max_time
-            FROM signals
-            GROUP BY pair
-        ) latest ON s.pair = latest.pair AND s.time = latest.max_time
-    '''
     try:
-        signals = conn.execute(query).fetchall()
-        result = [dict(row) for row in signals]
-        return jsonify(result)
+        from utils import get_mongo_db
+        db = get_mongo_db()
+        if db is None:
+            return jsonify([])
+
+        # Aggregation pipeline to get the latest signal per pair
+        pipeline = [
+            {"$sort": {"time": -1}},
+            {"$group": {
+                "_id": "$pair",
+                "doc": {"$first": "$$ROOT"}
+            }},
+            {"$replaceRoot": {"newRoot": "$doc"}}
+        ]
+        
+        signals = list(db.signals.aggregate(pipeline))
+        
+        # Convert _id and dates to string for JSON serialization
+        for s in signals:
+            s['_id'] = str(s['_id'])
+            if 'created_at' in s: s['created_at'] = str(s['created_at'])
+            
+        return jsonify(signals)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        conn.close()
 
 @app.route('/api/data/<pair>', methods=['GET'])
 def get_market_data(pair):
-    conn = get_db_connection()
-    limit = request.args.get('limit', 50)
+    limit = int(request.args.get('limit', 50))
     try:
-        query = f'''
-            SELECT * FROM market_data 
-            WHERE pair = ? 
-            ORDER BY time DESC 
-            LIMIT ?
-        '''
-        data = conn.execute(query, (pair.upper(), limit)).fetchall()
-        result = [dict(row) for row in data]
+        from utils import get_mongo_db
+        db = get_mongo_db()
+        if db is None:
+            return jsonify([])
+
+        cursor = db.market_data.find({"pair": pair.upper()}).sort("time", -1).limit(limit)
+        data = list(cursor)
+        
+        for d in data:
+            d['_id'] = str(d['_id'])
+            
         # Return sorted by time ascending for charts
-        return jsonify(result[::-1])
+        return jsonify(data[::-1])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        conn.close()
 
 @app.route('/api/news', methods=['GET'])
 def get_news():
-    conn = get_db_connection()
     try:
-        query = 'SELECT * FROM news ORDER BY date DESC LIMIT 20'
-        data = conn.execute(query).fetchall()
-        result = [dict(row) for row in data]
-        return jsonify(result)
+        from utils import get_mongo_db
+        db = get_mongo_db()
+        if db is None:
+            return jsonify([])
+
+        cursor = db.news.find().sort("date", -1).limit(20)
+        data = list(cursor)
+        
+        for d in data:
+            d['_id'] = str(d['_id'])
+            
+        return jsonify(data)
     except Exception as e:
+        print(f"News Mongo Error: {e}")
         return jsonify({"error": str(e)}), 500
-    finally:
-        conn.close()
+
+@app.route('/api/scan', methods=['POST'])
+def trigger_scan():
+    """Manually trigger a full analysis cycle"""
+    def run_async():
+        print("Manual scan triggered via API...")
+        run_analysis_cycle(mode="background")
+        print("Manual scan completed.")
+        
+    t = threading.Thread(target=run_async, daemon=True)
+    t.start()
+    return jsonify({"status": "Scan started", "message": "Analysis running in background"}), 202
 
 # Combined Entry Point
 def start_app():

@@ -23,71 +23,6 @@ from pymongo import MongoClient
 
 # Database Setup
 def init_db():
-    # SQLite Init (Legacy/Local)
-    conn = sqlite3.connect(Config.DB_FILE)
-    cursor = conn.cursor()
-    
-    # Table for News
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS news (
-            id TEXT PRIMARY KEY,
-            date TEXT,
-            title TEXT,
-            source TEXT,
-            sentiment_score REAL,
-            currency TEXT
-        )
-    ''')
-    
-    # Table for Signals
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS signals (
-            time TEXT,
-            pair TEXT,
-            signal TEXT,
-            confidence REAL,
-            entry_price REAL,
-            stop_loss REAL,
-            take_profit REAL,
-            reason TEXT
-        )
-    ''')
-    
-    # Table for Market Data & Indicators (History)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS market_data (
-            time TEXT,
-            pair TEXT,
-            open REAL,
-            high REAL,
-            low REAL,
-            close REAL,
-            rsi REAL,
-            macd REAL,
-            atr REAL,
-            ema_20 REAL,
-            ema_50 REAL,
-            PRIMARY KEY (time, pair)
-        )
-    ''')
-    
-    # Table for Chart Pattern History
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS pattern_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            time TEXT,
-            pair TEXT,
-            pattern_name TEXT,
-            bias TEXT,
-            score REAL,
-            confidence REAL
-        )
-    ''')
-    
-    conn.commit()
-    conn.close()
-    logger.info("Sqlite Database initialized.")
-
     # MongoDB Init Check
     if Config.MONGO_URI:
         try:
@@ -96,6 +31,8 @@ def init_db():
             logger.info("[OK] MongoDB Connection Successful.")
         except Exception as e:
             logger.error(f"[ERROR] MongoDB Connection Failed: {e}")
+    else:
+        logger.warning("[WARNING] MONGO_URI is not set. Data will not be saved.")
 
 def get_db_connection():
     return sqlite3.connect(Config.DB_FILE)
@@ -126,9 +63,19 @@ def check_api_keys():
         logger.info("[OK] All API keys appear to be configured.")
 
 def is_trading_hours():
-    """Check if current time is within London/NY sessions (UTC)"""
+    """Check if current time is within trading sessions (24h on Weekdays)"""
+    # 0 = Monday, 4 = Friday, 5=Saturday, 6=Sunday
+    weekday = datetime.utcnow().weekday()
     current_hour = datetime.utcnow().hour
-    return Config.TRADING_START_HOUR_UTC <= current_hour < Config.TRADING_END_HOUR_UTC
+    
+    # Simple check: Open all day Mon-Fri
+    # Fine-tuning: Open Mon 00:00 to Fri 22:00
+    if weekday < 4: # Mon, Tue, Wed, Thu
+        return True
+    elif weekday == 4: # Friday
+        return current_hour < 22 # Close at 22:00 UTC on Friday
+    else:
+        return False # Weekend
 
 def get_utc_to_ist(dt=None):
     """Convert UTC datetime to IST"""

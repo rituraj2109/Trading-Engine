@@ -1,7 +1,9 @@
+
 import schedule
 import time
 import sys
 import threading
+from datetime import datetime
 from config import Config
 from utils import init_db, logger, get_db_connection, check_api_keys
 from data_loader import DataLoader
@@ -34,14 +36,12 @@ def run_analysis_cycle(mode="background"):
     
     # 2. Analyze Core Pairs and Store Data (Every 15 Minutes)
     engine = DecisionEngine()
-    conn = get_db_connection()
-    cursor = conn.cursor()
     
     # Mongo Connection
-    db_mongo = None
-    if Config.MONGO_URI:
-        from utils import get_mongo_db
-        db_mongo = get_mongo_db()
+    from utils import get_mongo_db
+    db_mongo = get_mongo_db()
+
+    # Note: We are no longer using local SQLite. All data goes to MongoDB.
 
     if mode == "background":
         logger.info(f"Processing {len(Config.PAIRS)} symbols: {', '.join(Config.PAIRS)}")
@@ -65,14 +65,7 @@ def run_analysis_cycle(mode="background"):
                     # Convert timestamp to ISO string if needed
                     time_str = rd['time'].isoformat() if hasattr(rd['time'], 'isoformat') else str(rd['time'])
                     
-                    # 1. SQL Save
-                    cursor.execute('''
-                        INSERT OR REPLACE INTO market_data (time, pair, open, high, low, close, rsi, macd, atr, ema_20, ema_50)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (time_str, pair, rd['open'], rd['high'], rd['low'], rd['close'], 
-                          rd['rsi'], rd['macd'], rd['atr'], rd['ema_20'], rd['ema_50']))
-                    
-                    # 2. Mongo Save
+                    # Mongo Save
                     if db_mongo is not None:
                         mongo_data = {
                             "time": time_str,
@@ -88,22 +81,12 @@ def run_analysis_cycle(mode="background"):
                             {"$set": mongo_data},
                             upsert=True
                         )
-
-                    conn.commit()
-                    data_saved_count += 1
-                    if mode == "background":
-                        logger.info(f"✓ Saved market data & indicators for {pair} (Price: {result['price']})")
+                        data_saved_count += 1
+                        if mode == "background":
+                            logger.info(f"✓ Saved market data & indicators for {pair} (Price: {result['price']}) to MongoDB")
                 except Exception as e:
                     logger.error(f"DB Save Error {pair}: {e}")
 
-            # Log ALL signals to DB (including WAIT) for tracking
-            # This allows you to see market state even when closed
-            cursor.execute('''
-                INSERT INTO signals (time, pair, signal, confidence, entry_price, stop_loss, take_profit, reason)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (result['time'], pair, result['signal'], result['confidence'], 
-                  result['price'], result['stop_loss'], result['take_profit'], result['reason']))
-            
             # Mongo Save Signal
             if db_mongo is not None:
                 signal_doc = {
@@ -118,22 +101,14 @@ def run_analysis_cycle(mode="background"):
                     "created_at": datetime.utcnow()
                 }
                 db_mongo.signals.insert_one(signal_doc)
-
-            conn.commit()
-            signals_saved_count += 1
-            if mode == "background":
-                logger.info(f"[SIGNAL] Saved signal for {pair}: {result['signal']} at {result['time']}")
+                signals_saved_count += 1
+                if mode == "background":
+                    logger.info(f"[SIGNAL] Saved signal for {pair}: {result['signal']} at {result['time']}")
             
             # Save Chart Patterns to History
             if 'pattern_details' in result and result['pattern_details']:
-                for pattern_name, details in result['pattern_details'].items():
-                    cursor.execute('''
-                        INSERT INTO pattern_history (time, pair, pattern_name, bias, score, confidence)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ''', (result['time'], pair, pattern_name, details['bias'], 
-                          details['score'], details['confidence']))
-                    
-                    if db_mongo is not None:
+                if db_mongo is not None:
+                    for pattern_name, details in result['pattern_details'].items():
                         db_mongo.pattern_history.insert_one({
                             "time": result['time'],
                             "pair": pair,
@@ -142,8 +117,6 @@ def run_analysis_cycle(mode="background"):
                             "score": details['score'],
                             "confidence": details['confidence']
                         })
-
-                conn.commit()
             
             # Only log BUY/SELL signals to console in background mode
             if mode == "background" and result['signal'] != "WAIT":
@@ -153,7 +126,6 @@ def run_analysis_cycle(mode="background"):
         except Exception as e:
             logger.error(f"Error analyzing {pair}: {e}")
 
-    conn.close()
     if mode == "background":
         logger.info(f"✓ Stored {data_saved_count} market data records with indicators")
         logger.info(f"✓ Stored {signals_saved_count} signal records")
