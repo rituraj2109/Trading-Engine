@@ -19,21 +19,6 @@ def setup_logging():
 
 logger = setup_logging()
 
-def check_api_keys():
-    """Validates that API keys are set in the environment"""
-    missing_keys = []
-    if Config.API_KEY_TWELVEDATA == "DEMO_KEY": missing_keys.append("TwelveData")
-    if Config.API_KEY_POLYGON == "DEMO_KEY": missing_keys.append("Polygon")
-    if Config.API_KEY_ALPHAVANTAGE == "DEMO_KEY": missing_keys.append("AlphaVantage")
-    if Config.API_KEY_FMP == "DEMO_KEY": missing_keys.append("FMP")
-    
-    if missing_keys:
-        logger.warning("⚠️  MISSING API KEYS DETECTED!")
-        logger.warning(f"The following services are using 'DEMO_KEY' and will be skipped: {', '.join(missing_keys)}")
-        logger.warning("Ensure you have added your API keys to the Environment Variables (or .env file locally).")
-    else:
-        logger.info("✅ All API keys appear to be configured.")
-
 from pymongo import MongoClient
 
 # Database Setup
@@ -108,9 +93,9 @@ def init_db():
         try:
             client = MongoClient(Config.MONGO_URI, serverSelectionTimeoutMS=5000)
             client.server_info() # Trigger connection check
-            logger.info("✅ MongoDB Connection Successful.")
+            logger.info("[OK] MongoDB Connection Successful.")
         except Exception as e:
-            logger.error(f"❌ MongoDB Connection Failed: {e}")
+            logger.error(f"[ERROR] MongoDB Connection Failed: {e}")
 
 def get_db_connection():
     return sqlite3.connect(Config.DB_FILE)
@@ -118,8 +103,27 @@ def get_db_connection():
 def get_mongo_db():
     if not Config.MONGO_URI:
         return None
-    client = MongoClient(Config.MONGO_URI)
-    return client.get_database("forex_engine")
+    try:
+        client = MongoClient(Config.MONGO_URI, serverSelectionTimeoutMS=2000)
+        return client.get_database("forex_engine")
+    except Exception as e:
+        logger.error(f"MongoDB Error: {e}")
+        return None
+
+def check_api_keys():
+    """Validates that API keys are set in the environment"""
+    missing_keys = []
+    if Config.API_KEY_TWELVEDATA == "DEMO_KEY": missing_keys.append("TwelveData")
+    if Config.API_KEY_POLYGON == "DEMO_KEY": missing_keys.append("Polygon")
+    if Config.API_KEY_ALPHAVANTAGE == "DEMO_KEY": missing_keys.append("AlphaVantage")
+    if Config.API_KEY_FMP == "DEMO_KEY": missing_keys.append("FMP")
+    
+    if missing_keys:
+        logger.warning("[WARNING] MISSING API KEYS DETECTED!")
+        logger.warning(f"The following services are using 'DEMO_KEY' and will be skipped: {', '.join(missing_keys)}")
+        logger.warning("Ensure you have added your API keys to the Environment Variables (or .env file locally).")
+    else:
+        logger.info("[OK] All API keys appear to be configured.")
 
 def is_trading_hours():
     """Check if current time is within London/NY sessions (UTC)"""
