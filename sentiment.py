@@ -1,6 +1,6 @@
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import pandas as pd
-from utils import get_db_connection, logger
+from utils import logger
 
 class SentimentEngine:
     def __init__(self):
@@ -19,62 +19,77 @@ class SentimentEngine:
         """
         Read news from DB with 0 sentiment score, update them.
         """
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        from utils import get_mongo_db
+        db_mongo = get_mongo_db()
+        if db_mongo is None:
+            return
+
+        # Get news where sentiment_score is 0
+        cursor = db_mongo.news.find({"sentiment_score": 0})
         
-        # Get news where sentiment_score is 0 (assuming newly inserted or neutral)
-        # To strictly process only new ones, we might need a 'processed' flag 
-        # but here we just re-process if 0 or select all since last run. 
-        # For efficiency, let's just proceed.
-        
-        cursor.execute("SELECT id, title, source FROM news WHERE sentiment_score = 0")
-        rows = cursor.fetchall()
-        
-        for row in rows:
-            news_id, title, source = row
+        count = 0
+        for doc in cursor:
+            news_id = doc['id']
+            title = doc.get('title', '')
             score = self.analyze_text(title)
-            cursor.execute("UPDATE news SET sentiment_score = ? WHERE id = ?", (score, news_id))
-        
-        conn.commit()
-        conn.close()
+            
+            db_mongo.news.update_one(
+                {"id": news_id},
+                {"$set": {"sentiment_score": score}}
+            )
+            count += 1
+            
+        if count > 0:
+            logger.info(f"Updated sentiment for {count} news items.")
 
     def get_currency_sentiment(self, currency, hours=24):
         """
         Aggregate sentiment for a specific currency over the last N hours.
         Returns a normalized score.
         """
-        conn = get_db_connection()
+        from utils import get_mongo_db
+        db_mongo = get_mongo_db()
+        if db_mongo is None:
+            return 0
         
         # Aliases for Commodities
         search_term = currency
         if currency == 'XAU': search_term = 'Gold'
         if currency == 'XAG': search_term = 'Silver'
         
-        # Query: average sentiment of news
-        query = f"""
-            SELECT AVG(sentiment_score) as score, COUNT(*) as cnt 
-            FROM news 
-            WHERE (title LIKE '%{search_term}%' OR currency = '{currency}')
-            AND date >= datetime('now', '-{hours} hours')
-        """
+        # Calculate time threshold
+        from datetime import datetime, timedelta
+        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_str = cutoff_time.isoformat() # Assuming we store as ISO strings
+
+        # Pipeline to filter and average
+        pipeline = [
+            {
+                "$match": {
+                    "$or": [
+                        {"title": {"$regex": search_term, "$options": "i"}},
+                        {"currency": currency}
+                    ],
+                    "date": {"$gte": cutoff_str}
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "avg_score": {"$avg": "$sentiment_score"},
+                    "count": {"$sum": 1}
+                }
+            }
+        ]
         
-        cursor = conn.cursor()
         try:
-            cursor.execute(query)
-            result = cursor.fetchone()
-            if result and result[0] is not None:
-                avg_score = result[0]
-                count = result[1]
-                # Weight by volume? Maybe. For now, just raw average.
-                # If news is scarce, confidence is low.
-                
-                # Normalize to range -2 to +2 roughly based on intensity
-                # VADER compound is -1 to 1.
+            result = list(db_mongo.news.aggregate(pipeline))
+            if result:
+                avg_score = result[0]['avg_score'] or 0
                 return avg_score * 2 # Scaled
         except Exception as e:
             logger.error(f"Sentiment Query Error: {e}")
             
-        conn.close()
         return 0
 
     def get_pair_sentiment_score(self, pair):
