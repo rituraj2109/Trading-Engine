@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Activity, RefreshCw, Newspaper, TrendingUp, X } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import API_URL from './config';
+
 
 // Utils
 const formatTime = (timeStr) => {
@@ -24,9 +26,9 @@ function App() {
         setLoading(true);
         try {
             const [signalsRes, newsRes, statusRes] = await Promise.all([
-                axios.get('/api/signals'),
-                axios.get('/api/news'),
-                axios.get('/api/status').catch(() => ({ data: { status: 'offline' } }))
+                axios.get(`${API_URL}/api/signals`),
+                axios.get(`${API_URL}/api/news`),
+                axios.get(`${API_URL}/api/status`).catch(() => ({ data: { status: 'offline' } }))
             ]);
             setSignals(signalsRes.data || []);
             setNews(newsRes.data || []);
@@ -43,7 +45,7 @@ function App() {
         setSelectedPair(pair);
         try {
             // Get last 100 data points (15 min candles)
-            const res = await axios.get(`/api/data/${pair}?limit=100`);
+            const res = await axios.get(`${API_URL}/api/data/${pair}?limit=100`);
             setChartData(res.data);
         } catch (err) {
             console.error("Chart fetch error", err);
@@ -87,7 +89,7 @@ function App() {
                     <button
                         onClick={async () => {
                             setLoading(true);
-                            await axios.post('/api/scan');
+                            await axios.post(`${API_URL}/api/scan`);
                             setTimeout(fetchData, 4000);
                         }}
                         className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors text-sm font-semibold flex items-center gap-2"
