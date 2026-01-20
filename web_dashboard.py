@@ -9,7 +9,23 @@ from main import background_job, run_analysis_cycle
 from utils import init_db
 
 app = Flask(__name__, static_folder='frontend/dist')
-CORS(app) # Enable CORS for frontend access
+
+# Configure CORS to allow requests from Vercel frontend
+CORS(app, resources={
+    r"/api/*": {
+        "origins": [
+            "https://trading-engine-frontend-yhhs.vercel.app",
+            "http://localhost:5173",
+            "http://localhost:5000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5000"
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "expose_headers": ["Content-Type"],
+        "supports_credentials": True
+    }
+})
 
 def get_db_connection():
     conn = sqlite3.connect(Config.DB_FILE)
