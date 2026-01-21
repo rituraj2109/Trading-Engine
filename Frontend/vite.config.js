@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
     plugins: [react()],
     build: {
-        outDir: '../dist', // Build to root dist folder for Flask to serve
+        outDir: 'dist',
         emptyOutDir: true
     },
     server: {

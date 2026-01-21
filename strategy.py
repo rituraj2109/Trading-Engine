@@ -4,12 +4,31 @@ from sentiment import SentimentEngine
 from data_loader import DataLoader
 from utils import logger, is_trading_hours, get_symbol_trading_hours, get_utc_to_ist
 import pandas as pd
+import os
 
 class DecisionEngine:
-    def __init__(self):
+    def __init__(self, use_ml=True):
         self.loader = DataLoader()
         self.ta = TechnicalAnalysis()
         self.sentiment = SentimentEngine()
+        self.use_ml = use_ml
+        self.ml_model = None
+        
+        # Try to load ML model if requested
+        if self.use_ml:
+            try:
+                from ml_model import TradingMLModel
+                self.ml_model = TradingMLModel(model_type='random_forest')
+                
+                # Try to load existing model
+                if not self.ml_model.load_model():
+                    logger.warning("ML model not found. Run ml_model.py to train first. Using rule-based system.")
+                    self.ml_model = None
+                else:
+                    logger.info("ML model loaded successfully!")
+            except Exception as e:
+                logger.warning(f"Could not load ML model: {e}. Using rule-based system.")
+                self.ml_model = None
 
     def analyze_pair(self, pair):
         """
@@ -72,8 +91,32 @@ class DecisionEngine:
         # 3.b Detect Chart Patterns (adds/subtracts score)
         patterns, pattern_score, pattern_details = self.ta.detect_chart_patterns(df, lookback=100)
         
-        # 4. Total Score (include pattern score)
-        total_score = tech_score + sent_score + pattern_score
+        # 4. ML Prediction (if available)
+        ml_signal = "HOLD"
+        ml_confidence = 0.0
+        ml_score = 0.0
+        
+        if self.ml_model is not None:
+            try:
+                # Prepare features for ML prediction
+                features = latest_candle[self.ml_model.feature_columns].to_dict()
+                ml_signal, ml_confidence = self.ml_model.predict_single(features)
+                
+                # Convert ML signal to score
+                if ml_signal == 'BUY':
+                    ml_score = 2.0 * ml_confidence  # Weight by confidence
+                elif ml_signal == 'SELL':
+                    ml_score = -2.0 * ml_confidence
+                else:  # HOLD
+                    ml_score = 0.0
+                
+                logger.info(f"ML Prediction for {pair}: {ml_signal} (confidence: {ml_confidence:.2f}, score: {ml_score:.2f})")
+            except Exception as e:
+                logger.warning(f"ML prediction failed: {e}")
+                ml_score = 0.0
+        
+        # 5. Total Score (include pattern score and ML score)
+        total_score = tech_score + sent_score + pattern_score + ml_score
         
         signal = "WAIT"
         if total_score >= Config.BUY_THRESHOLD:
@@ -81,7 +124,7 @@ class DecisionEngine:
         elif total_score <= Config.SELL_THRESHOLD:
             signal = "SELL"
             
-        # 5. Risk Management Calculations
+        # 6. Risk Management Calculations
         atr = latest_candle['atr']
         price = latest_candle['close']
         
@@ -111,16 +154,20 @@ class DecisionEngine:
         else:
             precision = 5
             
-        final_reason = f"Tech: {tech_score}, Sentiment: {sent_score:.2f}"
+        final_reason = f"Tech: {tech_score:.1f}, Sentiment: {sent_score:.1f}"
+        if ml_score != 0.0:
+            final_reason += f", ML: {ml_signal} ({ml_confidence:.0%})"
         if patterns:
-            final_reason += f", Patterns: {', '.join(patterns)}"
+            final_reason += f", Patterns: {', '.join(patterns[:3])}"  # Limit to first 3 patterns
         
         # Override signal if market is closed (but still store data)
         if not session_info['is_open']:
             signal = "WAIT"
             final_reason = f"Market Closed - {session_info['session_name']}"
+            if ml_score != 0.0:
+                final_reason += f" | ML: {ml_signal}"
             if patterns:
-                final_reason += f" | Patterns: {', '.join(patterns)}"
+                final_reason += f" | Patterns: {', '.join(patterns[:2])}"
             
         return {
             "time": dt_utc.isoformat(),  # Store UTC ISO-8601
@@ -132,7 +179,11 @@ class DecisionEngine:
             "stop_loss": round(sl, precision),
             "take_profit": round(tp, precision),
             "reason": final_reason,
-            "scores": (tech_score, sent_score),
+            "scores": (tech_score, sent_score, ml_score if self.ml_model else 0),
+            "ml_prediction": {
+                "signal": ml_signal,
+                "confidence": ml_confidence
+            } if self.ml_model else None,
             "session_info": session_info,
             "raw_data": {
                 "time": dt_utc.isoformat(), # Store as UTC ISO string
@@ -145,8 +196,7 @@ class DecisionEngine:
                 "atr": latest_candle.get('atr', 0),
                 "ema_20": latest_candle.get('ema_20', 0),
                 "ema_50": latest_candle.get('ema_50', 0)
-            }
-            ,
+            },
             "patterns": patterns,
             "pattern_score": pattern_score,
             "pattern_details": pattern_details

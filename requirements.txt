@@ -10,3 +10,6 @@ flask
 flask-cors
 pymongo
 dnspython
+scikit-learn
+joblib
+xgboost

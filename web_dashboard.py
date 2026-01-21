@@ -4,60 +4,94 @@ import sqlite3
 import pandas as pd
 import threading
 import os
+import time
 from config import Config
 from main import background_job, run_analysis_cycle
 from utils import init_db
 
-app = Flask(__name__, static_folder='frontend/dist')
+app = Flask(__name__)
 
 # Configure CORS to allow requests from Vercel frontend
 CORS(app, resources={
     r"/api/*": {
         "origins": [
             "https://trading-engine-frontend-yhhs.vercel.app",
+            "https://trading-engine-frontend.vercel.app",
+            "https://*.vercel.app",
             "http://localhost:5173",
             "http://localhost:5000",
             "http://127.0.0.1:5173",
             "http://127.0.0.1:5000"
         ],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
+        "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin"],
         "expose_headers": ["Content-Type"],
-        "supports_credentials": True
+        "supports_credentials": True,
+        "max_age": 3600
     }
 })
+
+# Add after_request handler for additional CORS headers
+@app.after_request
+def after_request(response):
+    origin = request.headers.get('Origin')
+    if origin:
+        response.headers.add('Access-Control-Allow-Origin', origin)
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,Origin')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
 def get_db_connection():
     conn = sqlite3.connect(Config.DB_FILE)
     conn.row_factory = sqlite3.Row
     return conn
 
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve(path):
-    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
-        return app.send_static_file(path)
-    else:
-        return app.send_static_file('index.html')
+@app.route('/')
+def home():
+    """Root endpoint - API is running"""
+    return jsonify({
+        "message": "Trading Engine API is running",
+        "version": "1.2",
+        "endpoints": {
+            "health": "/api/health",
+            "status": "/api/status",
+            "signals": "/api/signals",
+            "news": "/api/news",
+            "data": "/api/data/<pair>",
+            "scan": "/api/scan (POST)"
+        }
+    })
+
+@app.route('/api/health', methods=['GET'])
+def health():
+    """Simple health check endpoint"""
+    return jsonify({"status": "ok", "timestamp": time.time()}), 200
 
 @app.route('/api/status', methods=['GET'])
 def status():
     # Check Mongo Status
     mongo_status = "disabled"
-    if Config.MONGO_URI:
+    mongo_uri_set = bool(Config.MONGO_URI and Config.MONGO_URI != "")
+    
+    if mongo_uri_set:
         try:
             from utils import get_mongo_db
             db = get_mongo_db()
-            db.command('ping')
-            mongo_status = "connected"
+            if db:
+                db.command('ping')
+                mongo_status = "connected"
+            else:
+                mongo_status = "not configured"
         except Exception as e:
-            mongo_status = f"error: {str(e)}"
-            
+            mongo_status = f"error: {str(e)[:100]}"
+    
     return jsonify({
         "status": "running", 
         "version": "1.2",
-        "database": "sqlite",
-        "mongodb": mongo_status
+        "database": "mongodb" if mongo_uri_set else "sqlite",
+        "mongodb": mongo_status,
+        "timestamp": time.time()
     })
 
 @app.route('/api/signals', methods=['GET'])

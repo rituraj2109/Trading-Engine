@@ -37,9 +37,14 @@ class Config:
     MIN_RISK_REWARD = 2.0
     ATR_MULTIPLIER_SL = 1.5
     
-    # Scoring Thresholds
-    BUY_THRESHOLD = 3
-    SELL_THRESHOLD = -3
+    # Scoring Thresholds (Adjusted for ML integration)
+    BUY_THRESHOLD = 3.5   # Slightly higher threshold with ML
+    SELL_THRESHOLD = -3.5
+    
+    # ML Configuration
+    USE_ML_MODEL = True  # Enable/disable ML predictions
+    ML_MODEL_TYPE = 'random_forest'  # 'random_forest', 'gradient_boosting', 'xgboost'
+    ML_CONFIDENCE_THRESHOLD = 0.6  # Minimum confidence for ML predictions
     
     # Time Filters (IST)
     # Trading Window: 13:30 IST to 03:30 IST (Crosses midnight if viewed strictly, but effectively 08:00 UTC to 22:00 UTC)

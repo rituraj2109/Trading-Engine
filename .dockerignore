@@ -13,3 +13,9 @@ verify_*.py
 .git/
 node_modules/
 dist/
+Frontend/
+frontend/
+.env
+.env.local
+.vscode/
+.idea/

@@ -20,6 +20,6 @@
         }
     ],
     "env": {
-        "VITE_API_URL": ""
+        "VITE_API_URL": "https://trading-engine-production-b04c.up.railway.app"
     }
 }
