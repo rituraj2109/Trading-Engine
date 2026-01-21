@@ -174,7 +174,18 @@ def trigger_scan():
     t.start()
     return jsonify({"status": "Scan started", "message": "Analysis running in background"}), 202
 
-# Combined Entry Point
+# Initialize background job when app starts (for Gunicorn)
+def init_background_engine():
+    """Initialize DB and start background engine thread"""
+    init_db()
+    t = threading.Thread(target=background_job, daemon=True)
+    t.start()
+    print("Background Engine Started...")
+
+# Start background engine when module is imported by Gunicorn
+init_background_engine()
+
+# Combined Entry Point (for local development)
 def start_app():
     # 1. Initialize DB
     init_db()
