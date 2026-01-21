@@ -2,6 +2,8 @@
 
 Forex AI Decision Engine — signal generator and data collector
 
+> Live Backend: https://trading-engine-production-b04c.up.railway.app
+
 What this project is
 --------------------
 This is a lightweight decision engine that collects market data, computes technical indicators and chart patterns, processes news sentiment, and produces BUY / SELL / WAIT signals on a configurable set of symbols.
